@@ -51,34 +51,25 @@ playerSquare3x = $030B
 playerSquare4y = $030C
 playerSquare4x = $030F
 
-playerNextPos1y = $0310
-playerNextPos1x = $0313
-playerNextPos2y = $0314
-playerNextPos2x = $0317
-playerNextPos3y = $0318
-playerNextPos3x = $031B
-playerNextPos4y = $031C
-playerNextPos4x = $031F
-
-
-playAreaLeftBoundary = $60
-playAreaRightBoundary = $B0
-playAreaBottomBoundary = $00
-playAreaTopBoundary = $FF
+spriteMovementYOffset .rs 1
+spriteMovementXOffset .rs 1
+spriteMovementXNegOffset .rs 1
 
 playerGridPos1 .rs 1
 playerGridPos1_hb .rs 1
-playerGridPos2 = $D0
-playerGridPos3 = $D1
-playerGridPos3_hb .rs 1
-playerGridPos4 = $EF
 
 playerNextGridPos1 .rs 1
 playerNextGridPos1_hb .rs 1
-playerNextGridPos2 .rs 1
-playerNextGridPos3 .rs 1
-playerGridNextPos3_hb .rs 1
-playerNextGridPos4 .rs 1
+
+playerTempGridStart .rs 1
+playerTempGridStart_hb .rs 1
+
+playerTempGridPos1 .rs 1
+playerTempGridPos1_hb .rs 1
+
+adjacentSquareOffset .rs 1
+nextGridPosValidBool .rs 1
+
 
 
 
@@ -103,10 +94,10 @@ RESET:
   JSR LoadSprites
 
   LDA #$CF
-  ;LDA #$01
   STA playerGridPos1
   LDA #$00
   STA playerGridPos1_hb
+  STA nextGridPosValidBool
 
 GameLoop:
   JMP GameLoop
@@ -229,6 +220,140 @@ SkipIncrementDASTimer:
 
   RTS
 
+IsAdjacentSquareOpen:
+  LDA #LOW(background)
+  STA gridLocationLowByte
+  LDA #HIGH(background)
+  STA gridLocationHighByte
+
+  LDA playerGridPos1
+  CLC
+  ADC adjacentSquareOffset
+  STA playerTempGridPos1
+
+  LDA playerGridPos1_hb
+  ADC $00
+  STA playerTempGridPos1_hb
+
+  ADC gridLocationHighByte
+  STA gridLocationHighByte
+
+  LDY playerTempGridPos1
+  LDA [gridLocationLowByte], y
+  CMP #$00
+  BNE .NotOpen
+.IsOpen:
+  STA nextGridPosValidBool
+  RTS
+.NotOpen:
+  LDA #$FF
+  STA nextGridPosValidBool
+  RTS
+
+IsLeftAdjacentSquareOpen:
+  LDA #LOW(background)
+  STA gridLocationLowByte
+  LDA #HIGH(background)
+  STA gridLocationHighByte
+
+  LDA playerGridPos1
+  SEC
+  SBC adjacentSquareOffset
+  STA playerTempGridPos1
+
+  LDA playerGridPos1_hb
+  SBC $00
+  STA playerTempGridPos1_hb
+
+  ADC gridLocationHighByte
+  STA gridLocationHighByte
+
+  LDY playerTempGridPos1
+  LDA [gridLocationLowByte], y
+  CMP #$00
+  BNE .NotOpen
+.IsOpen:
+  STA nextGridPosValidBool
+  RTS
+.NotOpen:
+  LDA #$FF
+  STA nextGridPosValidBool
+  RTS
+
+MoveSpritesByOffset:
+  LDA spriteMovementYOffset
+  CMP #$00
+  BEQ SkipYMovement
+  LDA playerSquare1y
+  CLC
+  ADC spriteMovementYOffset
+  STA playerSquare1y
+
+  LDA playerSquare2y
+  CLC
+  ADC spriteMovementYOffset
+  STA playerSquare2y
+
+  LDA playerSquare3y
+  CLC
+  ADC spriteMovementYOffset
+  STA playerSquare3y
+
+  LDA playerSquare4y
+  CLC
+  ADC spriteMovementYOffset
+  STA playerSquare4y
+SkipYMovement:
+  LDA spriteMovementXOffset
+  CMP #$00
+  BEQ SkipXMovement
+  LDA playerSquare1x
+  CLC
+  ADC spriteMovementXOffset
+  STA playerSquare1x
+
+  LDA playerSquare2x
+  CLC
+  ADC spriteMovementXOffset
+  STA playerSquare2x
+
+  LDA playerSquare3x
+  CLC
+  ADC spriteMovementXOffset
+  STA playerSquare3x
+
+  LDA playerSquare4x
+  CLC
+  ADC spriteMovementXOffset
+  STA playerSquare4x
+SkipXMovement:
+  LDA spriteMovementXNegOffset
+  CMP #$00
+  BEQ SkipNegXMovement
+
+  LDA playerSquare1x
+  SEC
+  SBC spriteMovementXNegOffset
+  STA playerSquare1x
+
+  LDA playerSquare2x
+  SEC
+  SBC spriteMovementXNegOffset
+  STA playerSquare2x
+
+  LDA playerSquare3x
+  SEC
+  SBC spriteMovementXNegOffset
+  STA playerSquare3x
+
+  LDA playerSquare4x
+  SEC
+  SBC spriteMovementXNegOffset
+  STA playerSquare4x
+
+SkipNegXMovement:
+  RTS
+
 
 MovePlayerPiece:
   INC sustained_movement_counter
@@ -236,8 +361,6 @@ ReadLeft:
   LDA buttons_pressed
   AND #LEFT_BUTTON
   BNE MovePlayerPieceLeft
-
-  JMP EndReadLeft
 
   LDA dpad_delay_auto_shift_active
   AND #LEFT_BUTTON
@@ -247,67 +370,45 @@ ReadLeft:
   CMP #BUTTON_ACTIVE_DELAY2
   BCC EndReadLeft
 
-
-
 MovePlayerPieceLeft:
 
-  LDA playerGridPos1
-  SEC
-  SBC #$01
-  STA playerNextGridPos1
-
-  LDA #LOW(background)
-  STA gridLocationLowByte
-  LDA #HIGH(background)
-  STA gridLocationHighByte
-  LDY playerNextGridPos1
-  LDA [gridLocationLowByte], y
-  ;STA $0301 ;debug thing to change sprite to show next square
+  LDA #$01
+  STA adjacentSquareOffset
+  JSR IsLeftAdjacentSquareOpen
+  LDA nextGridPosValidBool
   CMP $00
   BNE DontMoveLeft
 
-  LDA playerSquare1x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos1x
+  LDA playerTempGridPos1
+  STA playerNextGridPos1
+  LDA playerTempGridPos1_hb
+  STA playerNextGridPos1_hb
 
-  LDA playerSquare2x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos2x
+  LDA #$1F
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveLeft
 
-  LDA playerSquare3x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos3x
+  LDA #$08
+  STA spriteMovementXNegOffset
+  LDA #$00
+  STA spriteMovementYOffset
+  STA spriteMovementXOffset
+  JSR MoveSpritesByOffset
 
-  LDA playerSquare4x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos4x
-
-  LDA playerNextPos1x
-  STA playerSquare1x
-  LDA playerNextPos2x
-  STA playerSquare2x
-  LDA playerNextPos3x
-  STA playerSquare3x
-  LDA playerNextPos4x
-  STA playerSquare4x
   LDA playerNextGridPos1
   STA playerGridPos1
 
   ;set counter to zero since we're about to go into DAS
   LDA #$00
   STA sustained_movement_counter
+
+  LDA playerNextGridPos1
+  STA playerGridPos1
+  LDA playerNextGridPos1_hb
+  STA playerGridPos1_hb
 DontMoveLeft:
 EndReadLeft:
 
@@ -326,57 +427,42 @@ ReadRight:
 
 MovePlayerPieceRight:
 
-  LDA #LOW(background)
-  STA gridLocationLowByte
-  LDA #HIGH(background)
-  STA gridLocationHighByte
-
-  LDA playerGridPos1
-  CLC
-  ADC #$03
+  LDA #$01
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveRight
+  LDA playerTempGridPos1
   STA playerNextGridPos1
-
-  LDA playerGridPos1_hb
-  ADC $00
+  LDA playerTempGridPos1_hb
   STA playerNextGridPos1_hb
 
-  ADC gridLocationHighByte
-  STA gridLocationHighByte
-
-  LDY playerNextGridPos1
-  LDA [gridLocationLowByte], y
-  ;STA $0301 ;debug thing to change sprite to show next square
-
+  LDA #$03
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
   CMP $00
   BNE DontMoveRight
 
+  LDA #$21
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveRight
 
-  LDA playerSquare1x
-  SEC
-  ADC #$07
-  STA playerSquare1x
-
-  LDA playerSquare2x
-  SEC
-  ADC #$07
-  STA playerSquare2x
-
-  LDA playerSquare3x
-  SEC
-  ADC #$07
-  STA playerSquare3x
-
-  LDA playerSquare4x
-  SEC
-  ADC #$07
-  STA playerSquare4x
+  LDA #$08
+  STA spriteMovementXOffset
+  LDA #$00
+  STA spriteMovementYOffset
+  STA spriteMovementXNegOffset
+  JSR MoveSpritesByOffset
 
   LDA playerNextGridPos1
-  SEC
-  SBC #$02
   STA playerGridPos1
   LDA playerNextGridPos1_hb
-  STA playerNextGridPos1_hb
+  STA playerGridPos1_hb
 
 DontMoveRight:
 
@@ -402,26 +488,53 @@ ReadDown:
   BCC EndReadDown
 MovePlayerPieceDown:
 
-  LDA #LOW(background)
-  STA gridLocationLowByte
-  LDA #HIGH(background)
-  STA gridLocationHighByte
+  LDA #$20
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveDown
+  LDA playerTempGridPos1
+  STA playerNextGridPos1
+  LDA playerTempGridPos1_hb
+  STA playerNextGridPos1_hb
 
-  LDA playerGridPos1
-  CLC
-  ADC #$20
+  LDA #$40
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveDown
+
+  LDA #$21
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveDown
+
+  LDA #$22
+  STA adjacentSquareOffset
+  JSR IsAdjacentSquareOpen
+  LDA nextGridPosValidBool
+  CMP $00
+  BNE DontMoveDown
+
+  LDA #$08
+  STA spriteMovementYOffset
+  LDA #$00
+  STA spriteMovementXOffset
+  STA spriteMovementXNegOffset
+  JSR MoveSpritesByOffset
+
+  LDA playerNextGridPos1
   STA playerGridPos1
-
-  LDA playerGridPos1_hb
-  ADC $00
+  LDA playerNextGridPos1_hb
   STA playerGridPos1_hb
-
-  ADC gridLocationHighByte
-  STA gridLocationHighByte
-
-  LDY playerGridPos1
-  LDA [gridLocationLowByte], y
-  STA $0301
+DontMoveDown:
+  ;set counter to zero since we're about to go into DAS
+  LDA #$00
+  STA sustained_movement_counter
 EndReadDown:
 
 
