@@ -8,6 +8,7 @@
 pointerBackgroundLowByte .rs 1
 pointerBackgroundHighByte .rs 1
 
+;i attempt to use these bytes for indirect indexed addressing of background data
 gridLocationLowByte .rs 1
 gridLocationHighByte .rs 1
 
@@ -65,15 +66,20 @@ playAreaRightBoundary = $B0
 playAreaBottomBoundary = $00
 playAreaTopBoundary = $FF
 
-playerGridPos1 = $D1
-playerGridPos2 = $D2
-playerGridPos3 = $D3
-playerGridPos4 = $F1
+playerGridPos1 .rs 1
+playerGridPos1_hb .rs 1
+playerGridPos2 = $D0
+playerGridPos3 = $D1
+playerGridPos3_hb .rs 1
+playerGridPos4 = $EF
 
 playerNextGridPos1 .rs 1
+playerNextGridPos1_hb .rs 1
 playerNextGridPos2 .rs 1
 playerNextGridPos3 .rs 1
+playerGridNextPos3_hb .rs 1
 playerNextGridPos4 .rs 1
+
 
 
 
@@ -95,6 +101,12 @@ RESET:
   STA $2005
   STA $2005
   JSR LoadSprites
+
+  LDA #$CF
+  ;LDA #$01
+  STA playerGridPos1
+  LDA #$00
+  STA playerGridPos1_hb
 
 GameLoop:
   JMP GameLoop
@@ -217,80 +229,6 @@ SkipIncrementDASTimer:
 
   RTS
 
-MoveLeftIfLegal:
-; check if square 1 new position is within play area
-  LDA playerSquare1x
-  SEC
-  SBC #$08
-  ;CMP #playAreaLeftBoundary
-  ;BCC DontMoveLeft
-  STA playerNextPos1x
-
-  LDA playerGridPos1
-  SBC #$01
-  STA playerNextGridPos1
-
-; check if square 1 new position is not occupied
-  LDA #LOW(background)
-  STA gridLocationLowByte
-  LDA #HIGH(background)
-  STA gridLocationHighByte
-
-  LDA gridLocationLowByte
-  ADC #playerNextGridPos1
-  BCC BlockOneNotCrossedPage
-  INC gridLocationHighByte
-BlockOneNotCrossedPage:
-  LDY #playerNextGridPos1
-  LDA [gridLocationLowByte], y
-  CMP $00
-  BNE DontMoveLeft
-
-  LDA playerSquare2x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos2x
-
-  LDA playerGridPos2
-  SBC #$01
-  STA playerNextGridPos2
-
-  LDA playerSquare3x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos3x
-
-  LDA playerGridPos3
-  SBC #$01
-  STA playerNextGridPos3
-
-  LDA playerSquare4x
-  SEC
-  SBC #$08
-  CMP #playAreaLeftBoundary
-  BCC DontMoveLeft
-  STA playerNextPos4x
-
-  LDA playerGridPos4
-  SBC #$01
-  STA playerNextGridPos4
-
-  LDA playerNextPos1x
-  STA playerSquare1x
-  LDA playerNextPos2x
-  STA playerSquare2x
-  LDA playerNextPos3x
-  STA playerSquare3x
-  LDA playerNextPos4x
-  STA playerSquare4x
-
-DontMoveLeft:
-  RTS
-
 
 MovePlayerPiece:
   INC sustained_movement_counter
@@ -298,6 +236,8 @@ ReadLeft:
   LDA buttons_pressed
   AND #LEFT_BUTTON
   BNE MovePlayerPieceLeft
+
+  JMP EndReadLeft
 
   LDA dpad_delay_auto_shift_active
   AND #LEFT_BUTTON
@@ -307,13 +247,68 @@ ReadLeft:
   CMP #BUTTON_ACTIVE_DELAY2
   BCC EndReadLeft
 
+
+
 MovePlayerPieceLeft:
 
-  JSR MoveLeftIfLegal
+  LDA playerGridPos1
+  SEC
+  SBC #$01
+  STA playerNextGridPos1
+
+  LDA #LOW(background)
+  STA gridLocationLowByte
+  LDA #HIGH(background)
+  STA gridLocationHighByte
+  LDY playerNextGridPos1
+  LDA [gridLocationLowByte], y
+  ;STA $0301 ;debug thing to change sprite to show next square
+  CMP $00
+  BNE DontMoveLeft
+
+  LDA playerSquare1x
+  SEC
+  SBC #$08
+  CMP #playAreaLeftBoundary
+  BCC DontMoveLeft
+  STA playerNextPos1x
+
+  LDA playerSquare2x
+  SEC
+  SBC #$08
+  CMP #playAreaLeftBoundary
+  BCC DontMoveLeft
+  STA playerNextPos2x
+
+  LDA playerSquare3x
+  SEC
+  SBC #$08
+  CMP #playAreaLeftBoundary
+  BCC DontMoveLeft
+  STA playerNextPos3x
+
+  LDA playerSquare4x
+  SEC
+  SBC #$08
+  CMP #playAreaLeftBoundary
+  BCC DontMoveLeft
+  STA playerNextPos4x
+
+  LDA playerNextPos1x
+  STA playerSquare1x
+  LDA playerNextPos2x
+  STA playerSquare2x
+  LDA playerNextPos3x
+  STA playerSquare3x
+  LDA playerNextPos4x
+  STA playerSquare4x
+  LDA playerNextGridPos1
+  STA playerGridPos1
 
   ;set counter to zero since we're about to go into DAS
   LDA #$00
   STA sustained_movement_counter
+DontMoveLeft:
 EndReadLeft:
 
 ReadRight:
@@ -330,48 +325,105 @@ ReadRight:
   BCC EndReadRight
 
 MovePlayerPieceRight:
+
+  LDA #LOW(background)
+  STA gridLocationLowByte
+  LDA #HIGH(background)
+  STA gridLocationHighByte
+
+  LDA playerGridPos1
+  CLC
+  ADC #$03
+  STA playerNextGridPos1
+
+  LDA playerGridPos1_hb
+  ADC $00
+  STA playerNextGridPos1_hb
+
+  ADC gridLocationHighByte
+  STA gridLocationHighByte
+
+  LDY playerNextGridPos1
+  LDA [gridLocationLowByte], y
+  ;STA $0301 ;debug thing to change sprite to show next square
+
+  CMP $00
+  BNE DontMoveRight
+
+
   LDA playerSquare1x
   SEC
   ADC #$07
-  CMP #playAreaRightBoundary
-  BCS DontMoveRight
-  STA playerNextPos1x
+  STA playerSquare1x
 
   LDA playerSquare2x
   SEC
   ADC #$07
-  CMP #playAreaRightBoundary
-  BCS DontMoveRight
-  STA playerNextPos2x
+  STA playerSquare2x
 
   LDA playerSquare3x
   SEC
   ADC #$07
-  CMP #playAreaRightBoundary
-  BCS DontMoveRight
-  STA playerNextPos3x
+  STA playerSquare3x
 
   LDA playerSquare4x
   SEC
   ADC #$07
-  CMP #playAreaRightBoundary
-  BCS DontMoveRight
-  STA playerNextPos4x
-
-  LDA playerNextPos1x
-  STA playerSquare1x
-  LDA playerNextPos2x
-  STA playerSquare2x
-  LDA playerNextPos3x
-  STA playerSquare3x
-  LDA playerNextPos4x
   STA playerSquare4x
+
+  LDA playerNextGridPos1
+  SEC
+  SBC #$02
+  STA playerGridPos1
+  LDA playerNextGridPos1_hb
+  STA playerNextGridPos1_hb
+
 DontMoveRight:
 
   ;set counter to zero since we're about to go into DAS
   LDA #$00
   STA sustained_movement_counter
 EndReadRight:
+
+
+ReadDown:
+  LDA buttons_pressed
+  AND #DOWN_BUTTON
+  BNE MovePlayerPieceDown
+
+  JMP EndReadDown
+
+  LDA dpad_delay_auto_shift_active
+  AND #DOWN_BUTTON
+  BEQ EndReadDown
+
+  LDA sustained_movement_counter
+  CMP #BUTTON_ACTIVE_DELAY2
+  BCC EndReadDown
+MovePlayerPieceDown:
+
+  LDA #LOW(background)
+  STA gridLocationLowByte
+  LDA #HIGH(background)
+  STA gridLocationHighByte
+
+  LDA playerGridPos1
+  CLC
+  ADC #$20
+  STA playerGridPos1
+
+  LDA playerGridPos1_hb
+  ADC $00
+  STA playerGridPos1_hb
+
+  ADC gridLocationHighByte
+  STA gridLocationHighByte
+
+  LDY playerGridPos1
+  LDA [gridLocationLowByte], y
+  STA $0301
+EndReadDown:
+
 
   RTS
 
