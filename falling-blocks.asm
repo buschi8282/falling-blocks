@@ -265,11 +265,13 @@ IsLeftAdjacentSquareOpen:
   SBC $00
   STA playerTempGridPos1_hb
 
+  CLC 
   ADC gridLocationHighByte
   STA gridLocationHighByte
 
   LDY playerTempGridPos1
   LDA [gridLocationLowByte], y
+  STA $0301
   CMP #$00
   BNE .NotOpen
 .IsOpen:
