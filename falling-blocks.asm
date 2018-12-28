@@ -265,13 +265,12 @@ IsLeftAdjacentSquareOpen:
   SBC $00
   STA playerTempGridPos1_hb
 
-  CLC 
+  CLC
   ADC gridLocationHighByte
   STA gridLocationHighByte
 
   LDY playerTempGridPos1
   LDA [gridLocationLowByte], y
-  STA $0301
   CMP #$00
   BNE .NotOpen
 .IsOpen:
@@ -479,8 +478,6 @@ ReadDown:
   AND #DOWN_BUTTON
   BNE MovePlayerPieceDown
 
-  JMP EndReadDown
-
   LDA dpad_delay_auto_shift_active
   AND #DOWN_BUTTON
   BEQ EndReadDown
@@ -533,10 +530,13 @@ MovePlayerPieceDown:
   STA playerGridPos1
   LDA playerNextGridPos1_hb
   STA playerGridPos1_hb
-DontMoveDown:
+
   ;set counter to zero since we're about to go into DAS
   LDA #$00
   STA sustained_movement_counter
+
+DontMoveDown:
+
 EndReadDown:
 
 
